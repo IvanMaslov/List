@@ -20,20 +20,22 @@ public:
 
         list_iterator() = default;
 
-        list_iterator(list_iterator<T> const &other) : ptr(other.ptr) {}
+        list_iterator(nullptr_t) = delete;
+
+        list_iterator(list_iterator<T> const &other) : base(other.base) {}
 
         list_iterator &operator=(list_iterator const &) = default;
 
         D &operator*() const {
-            return static_cast<node *>(ptr)->value;
+            return static_cast<node *>(base)->value;
         }
 
         D *operator->() const {
-            return &static_cast<node *>(ptr)->value;
+            return &static_cast<node *>(base)->value;
         }
 
         list_iterator operator++() &{
-            ptr = ptr->next;
+            base = base->r;
             return *this;
         }
 
@@ -44,7 +46,7 @@ public:
         }
 
         list_iterator operator--() &{
-            ptr = ptr->prev;
+            base = base->l;
             return *this;
         }
 
@@ -55,19 +57,20 @@ public:
         }
 
         friend bool operator==(list_iterator const &a, list_iterator const &b) {
-            return a.ptr == b.ptr;
+            return a.base == b.base;
         }
 
         friend bool operator!=(list_iterator const &a, list_iterator const &b) {
-            return a.ptr != b.ptr;
+            return a.base != b.base;
         }
 
     private:
-        base_node *ptr;
+        base_node *base;
 
-        explicit list_iterator(base_node *p) : ptr(p) {};
+        explicit list_iterator(const base_node *p) : base(p) {};
+        explicit list_iterator(base_node *p) : base(p) {};
 
-        friend struct list;
+        friend class list;
     };
 
 public: // public methods declaration
@@ -107,6 +110,9 @@ public: // public methods declaration
 
     void swap(list &) noexcept;
 
+    template<class E>
+    friend void swap(list<E> & a, list<E> & b){ a.swap(b); }
+
     void splice(const_iterator, list &, const_iterator, const_iterator);
 
 private: // private struct declaration
@@ -117,9 +123,6 @@ private: // private struct declaration
 
         base_node() : l(nullptr), r(nullptr) {}
 
-        base_node *next() { return r; }
-
-        base_node *prev() { return l; }
     };
 
     struct node : public base_node {
@@ -134,24 +137,28 @@ private: //private members declaration
 
 private: //private methods declaration
 
-    void clone(base_node *);
+    void clone(base_node *) const;
 
-    void lnk(base_node *, base_node *);
+    static void lnk(base_node *, base_node *);
 
 public: //iterators methods
 
 
-    iterator begin() noexcept { return iterator(&ROOT.l); }
-    const_iterator begin() const noexcept { return iterator(&ROOT.l); }
+    iterator begin() noexcept { return iterator(ROOT.l); }
+
+    const_iterator begin() const noexcept { return const_iterator(ROOT.l); }
 
     iterator end() noexcept { return iterator(&ROOT); }
-    const_iterator end() const noexcept { return iterator(&ROOT); }
+
+    const_iterator end() const noexcept { return const_iterator(const_cast<base_node*>(&ROOT)); }
 
     reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
-    const_reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
+
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
 
     reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
-    const_reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
 
     iterator insert(list::const_iterator pos, const T &val) {
         node *v = new node(val);
@@ -238,11 +245,11 @@ list<T>::list() noexcept {
 
 
 template<class T>
-void list<T>::clone(list::base_node *res) {
+void list<T>::clone(list::base_node *res) const {
     base_node *t = ROOT.r;
     base_node *start_res = res;
     while (t != &ROOT) {
-        base_node *e = new node(t);
+        base_node *e = new node(static_cast<node *>(t)->value);
         lnk(e, res);
         lnk(start_res, e);
         res = e;
@@ -274,7 +281,7 @@ template<class T>
 void list<T>::push_front(const T &val) { insert(begin(), val); }
 
 template<class T>
-void list<T>::pop_back() { erase(--end()); }
+void list<T>::pop_back() { erase(end()); }
 
 template<class T>
 void list<T>::pop_front() { erase(begin()); }
@@ -291,26 +298,33 @@ const T &list<T>::front() const noexcept {
 
 template<class T>
 T &list<T>::back() {
-    return *--end();
+    auto k = end();
+    --k;
+    return *k;
 }
 
 template<class T>
 const T &list<T>::back() const noexcept {
-    return *--end();
+    auto k = end();
+    --k;
+    return *k;
 }
 
 template<class T>
-void list<T>::splice(list::const_iterator pos, list & src, list::const_iterator from, list::const_iterator to) {
-    base_node* src_left = from.ptr->r;
-    base_node* src_right = to.ptr;
-    base_node* from_base = from.ptr;
-    base_node* to_base = to.ptr->l;
+void list<T>::splice(list::const_iterator pos, list &src, list::const_iterator from, list::const_iterator to) {
+    base_node *src_left = from.base->r;
+    base_node *src_right = to.base;
+    base_node *from_base = from.base;
+    base_node *to_base = to.base->l;
     lnk(src_left, src_right);
-    base_node* insert_from = pos.ptr->l;
-    base_node* insert_to = pos.ptr;
+    base_node *insert_from = pos.base->l;
+    base_node *insert_to = pos.base;
     lnk(insert_from, from_base);
     lnk(to_base, insert_to);
 }
 
 
 #endif //MYLIST_LIST_H
+
+
+
